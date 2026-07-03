@@ -188,7 +188,7 @@
         const EMAIL_ADMIN_PERMITIDO = "vi.almeidadesign@gmail.com";
         // ==========================================
 
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         let registros = [];
         let userAtual = null;
         let journeyMinutes = parseInt(localStorage.getItem('jornadaMinutosVigente')) || 528;
@@ -197,7 +197,7 @@
         document.getElementById('configJornada').value = journeyMinutes;
 
         // Monitor de estado de autenticação
-        supabase.auth.onAuthStateChange((event, session) => {
+        db.auth.onAuthStateChange((event, session) => {
             if (session) {
                 userAtual = session.user;
                 
@@ -225,7 +225,7 @@
 
             erroEl.classList.add('hidden');
 
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            const { error } = await db.auth.signInWithPassword({ email, password });
             if (error) {
                 erroEl.textContent = "Credenciais inválidas ou acesso não configurado.";
                 erroEl.classList.remove('hidden');
@@ -233,13 +233,13 @@
         });
 
         async function deslogar() {
-            await supabase.auth.signOut();
+            await db.auth.signOut();
             location.reload();
         }
 
         async function carregarDadosDaNuvem() {
             if (!userAtual) return;
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('registros_ponto')
                 .select('*')
                 .order('data', { ascending: false });
@@ -302,7 +302,7 @@
             if(img_ent1) payload.img_ent1 = img_ent1; if(img_sai1) payload.img_sai1 = img_sai1;
             if(img_ent2) payload.img_ent2 = img_ent2; if(img_sai2) payload.img_sai2 = img_sai2;
 
-            const { error } = await supabase.from('registros_ponto').upsert(payload, { onConflict: 'user_id,data' });
+            const { error } = await db.from('registros_ponto').upsert(payload, { onConflict: 'user_id,data' });
 
             if (error) { alert("Erro ao salvar na nuvem: " + error.message); }
             else {
@@ -315,7 +315,7 @@
 
         async function deletarRegistro(id) {
             if(confirm("Remover permanentemente da nuvem?")) {
-                const { error } = await supabase.from('registros_ponto').delete().eq('id', id);
+                const { error } = await db.from('registros_ponto').delete().eq('id', id);
                 if(!error) carregarDadosDaNuvem();
             }
         }
@@ -367,7 +367,7 @@
                     statusTxt.textContent = `Enviando ${payloads.length} registros para a nuvem...`;
 
                     // Envia em lote usando o Upsert para não duplicar datas existentes
-                    const { error } = await supabase
+                    const { error } = await db
                         .from('registros_ponto')
                         .upsert(payloads, { onConflict: 'user_id,data' });
 
