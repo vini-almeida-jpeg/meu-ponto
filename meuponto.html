@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Ponto — Nuvem Segura</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .untitled-shadow { box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05), 0px 4px 24px -4px rgba(16, 24, 40, 0.03); }
+        input[type="time"]::-webkit-calendar-picker-indicator,
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(0.3) sepia(1) saturate(3) hue-rotate(230deg); cursor: pointer; }
+    </style>
+</head>
+<body class="bg-slate-50/60 text-slate-900 min-h-screen pb-16">
+
+    <div id="authContainer" class="fixed inset-0 bg-slate-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-8 max-w-md w-full untitled-shadow">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold tracking-tight text-slate-900">Acesso ao Painel</h2>
+                <p class="text-sm text-slate-500 mt-1">Insira suas credenciais exclusivas para sincronizar com a nuvem.</p>
+            </div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="text-sm font-medium text-slate-700 block mb-1.5">E-mail</label>
+                    <input type="email" id="loginEmail" required class="flex h-10 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700 block mb-1.5">Senha</label>
+                    <input type="password" id="loginSenha" required class="flex h-10 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                </div>
+                <button type="submit" class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg h-10 text-sm font-semibold shadow-sm transition-colors">Entrar no Sistema</button>
+                <p id="loginErro" class="text-xs text-rose-600 font-medium text-center hidden mt-2"></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="blockContainer" class="fixed inset-0 bg-slate-950 text-white z-50 hidden flex flex-col items-center justify-center p-4 text-center">
+        <h2 class="text-3xl font-bold text-rose-500 mb-2">Acesso Não Autorizado</h2>
+        <p class="text-slate-400 max-w-sm text-sm">Este aplicativo é de uso estritamente pessoal e privado. Sua conta não tem permissão de acesso.</p>
+        <button onclick="deslogar()" class="mt-6 bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-semibold transition-colors">Voltar para o Login</button>
+    </div>
+
+    <div id="imageModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-sm hidden z-40 flex items-center justify-center p-4 transition-all" onclick="fecharModal()">
+        <div class="bg-white rounded-2xl p-3 max-w-xl w-full untitled-shadow relative" onclick="event.stopPropagation()">
+            <button onclick="fecharModal()" class="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full w-8 h-8 flex items-center justify-center text-lg font-medium transition-colors">&times;</button>
+            <img id="modalImg" src="" class="w-full h-auto aspect-square object-cover rounded-xl border border-slate-200">
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 pt-12">
+        <header class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-10 pb-6 border-b border-slate-200/60">
+            <div class="text-center sm:text-left">
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200/60 mb-2 shadow-sm">
+                    <span class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse"></span>
+                    <span id="badgeJornada">Jornada Diária: 08:48</span>
+                </div>
+                <h1 class="text-3xl font-bold tracking-tight text-slate-900">Controle de Ponto</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="userDisplay" class="text-xs text-slate-500 font-medium"></span>
+                <button onclick="deslogar()" class="text-xs font-semibold text-slate-600 hover:text-rose-600 border border-slate-300 rounded-lg bg-white px-3 py-2 shadow-sm hover:bg-slate-50 transition-colors">Sair</button>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow p-6 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-violet-500"></div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Saldo Total Acumulado (Nuvem)</span>
+            <div class="text-4xl font-bold tracking-tight md:text-5xl" id="saldoTotalValue">+00:00</div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+            <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow p-6 md:col-span-2">
+                <div class="mb-6"><h2 class="text-lg font-semibold text-slate-900">Registrar Novo Ponto</h2></div>
+                <form id="pontoForm" class="space-y-5">
+                    <div>
+                        <label class="text-sm font-medium text-slate-700 block mb-2">Data do Registro</label>
+                        <input type="date" id="dataPonto" required class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm shadow-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                    </div>
+                    <div class="border-t border-slate-100 my-4"></div>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Entrada 1</label><input type="time" id="ent1" required class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"></div>
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Foto Comprovante E1</label><input type="file" id="imgEnt1" accept="image/*" capture="environment" class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs file:border-0 file:bg-violet-50 file:text-violet-700 file:rounded-md file:px-2.5 file:font-semibold cursor-pointer"></div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Saída 1</label><input type="time" id="sai1" required class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"></div>
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Foto Comprovante S1</label><input type="file" id="imgSai1" accept="image/*" capture="environment" class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs file:border-0 file:bg-violet-50 file:text-violet-700 file:rounded-md file:px-2.5 file:font-semibold cursor-pointer"></div>
+                        </div>
+                        <div class="border-t border-slate-100 my-4"></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Entrada 2</label><input type="time" id="ent2" required class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"></div>
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Foto Comprovante E2</label><input type="file" id="imgEnt2" accept="image/*" capture="environment" class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs file:border-0 file:bg-violet-50 file:text-violet-700 file:rounded-md file:px-2.5 file:font-semibold cursor-pointer"></div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Saída 2</label><input type="time" id="sai2" required class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"></div>
+                            <div class="space-y-1.5"><label class="text-xs font-medium text-slate-600">Foto Comprovante S2</label><input type="file" id="imgSai2" accept="image/*" capture="environment" class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs file:border-0 file:bg-violet-50 file:text-violet-700 file:rounded-md file:px-2.5 file:font-semibold cursor-pointer"></div>
+                        </div>
+                    </div>
+                    <button type="submit" id="btnSalvar" class="w-full bg-violet-600 text-white rounded-lg h-10 text-sm font-semibold shadow-sm hover:bg-violet-700 mt-4 transition-colors">Salvar na Nuvem</button>
+                </form>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow p-6 space-y-4">
+                    <div><h2 class="text-base font-semibold text-slate-900">Configurar Carga Horária</h2></div>
+                    <select id="configJornada" onchange="atualizarConfigJornada()" class="flex h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100 cursor-pointer">
+                        <option value="528">44 horas semanais (08:48 diários)</option>
+                        <option value="504">42 horas semanais (08:24 diários)</option>
+                        <option value="480">40 horas semanais (08:00 diários)</option>
+                        <option value="360">30 horas semanais (06:00 diários)</option>
+                        <option value="240">20 horas semanais (04:00 diários)</option>
+                    </select>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow p-6 space-y-5">
+                    <div><h2 class="text-base font-semibold text-slate-900">Filtros & Exportação</h2></div>
+                    <div class="space-y-3">
+                        <div><label class="text-xs font-medium text-slate-600 block mb-1">Início:</label><input type="date" id="exportInicio" class="flex h-10 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"></div>
+                        <div><label class="text-xs font-medium text-slate-600 block mb-1">Fim:</label><input type="date" id="exportFim" class="flex h-10 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"></div>
+                    </div>
+                    <button onclick="exportarRelatorio()" class="w-full bg-white text-slate-700 border border-slate-300 rounded-lg h-10 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-colors">Gerar Relatório PDF</button>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow p-6 space-y-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">Backup dos Dados</h2>
+                        <p class="text-xs text-slate-500 mt-1">Guarde uma cópia em arquivo ou restaure registros anteriores.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <button onclick="exportarBackupJSON()" class="w-full inline-flex items-center justify-center bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg h-9 text-xs font-semibold shadow-sm transition-colors">
+                            Exportar Arquivo (.json)
+                        </button>
+                        
+                        <label class="w-full inline-flex items-center justify-center bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg h-9 text-xs font-semibold shadow-sm transition-colors cursor-pointer text-center">
+                            <span>Importar Arquivo (.json)</span>
+                            <input type="file" id="inputBackupFile" accept=".json" onchange="importarBackupJSON(event)" class="hidden">
+                        </label>
+                        <p id="txtStatusBackup" class="text-[11px] text-center font-medium text-slate-500 hidden"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 untitled-shadow mt-8 overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div><h2 class="text-lg font-semibold text-slate-900">Histórico Sincronizado</h2></div>
+                <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <div class="flex items-center gap-1.5 min-w-[160px]">
+                        <span class="text-xs font-medium text-slate-500">Mês:</span>
+                        <input type="month" id="filtroMes" onchange="renderizar()" class="flex h-9 w-full rounded-lg border border-slate-300 px-2 py-1 text-xs outline-none focus:border-violet-500">
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200/60 text-xs uppercase tracking-wider">
+                        <tr>
+                            <th class="p-4 text-center">Data</th>
+                            <th class="p-4 text-center">E1</th>
+                            <th class="p-4 text-center">S1</th>
+                            <th class="p-4 text-center">E2</th>
+                            <th class="p-4 text-center">S2</th>
+                            <th class="p-4 text-center">Saldo</th>
+                            <th class="p-4 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaCorpo" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURAÇÃO DO SUPABASE — PROCURE POR ESTE BLOCO
+        // ==========================================
+        const SUPABASE_URL = "https://lygaktjryrfyageeawby.supabase.co/rest/v1/"; 
+        const SUPABASE_ANON_KEY = "sb_publishable_41-qErtsjbDDNomjJZaoow_d0j0HB78";
+        
+        // TRAVA QUÍMICA EXTRA: Substitua pelo seu e-mail exato cadastrado no Supabase
+        const EMAIL_ADMIN_PERMITIDO = "vi.almeidadesign@gmail.com";
+        // ==========================================
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let registros = [];
+        let userAtual = null;
+        let journeyMinutes = parseInt(localStorage.getItem('jornadaMinutosVigente')) || 528;
+
+        document.getElementById('dataPonto').valueAsDate = new Date();
+        document.getElementById('configJornada').value = journeyMinutes;
+
+        // Monitor de estado de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                userAtual = session.user;
+                
+                if (userAtual.email !== EMAIL_ADMIN_PERMITIDO) {
+                    document.getElementById('blockContainer').classList.remove('hidden');
+                    return;
+                }
+
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('userDisplay').textContent = userAtual.email;
+                carregarDadosDaNuvem();
+            } else {
+                userAtual = null;
+                document.getElementById('authContainer').classList.remove('hidden');
+                document.getElementById('blockContainer').classList.add('hidden');
+            }
+        });
+
+        // Formulário de Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginSenha').value;
+            const erroEl = document.getElementById('loginErro');
+
+            erroEl.classList.add('hidden');
+
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                erroEl.textContent = "Credenciais inválidas ou acesso não configurado.";
+                erroEl.classList.remove('hidden');
+            }
+        });
+
+        async function deslogar() {
+            await supabase.auth.signOut();
+            location.reload();
+        }
+
+        async function carregarDadosDaNuvem() {
+            if (!userAtual) return;
+            const { data, error } = await supabase
+                .from('registros_ponto')
+                .select('*')
+                .order('data', { ascending: false });
+
+            if (!error && data) {
+                registros = data;
+                renderizar();
+            }
+        }
+
+        function atualizarConfigJornada() {
+            journeyMinutes = parseInt(document.getElementById('configJornada').value);
+            localStorage.setItem('jornadaMinutosVigente', journeyMinutes);
+            const h = Math.floor(journeyMinutes / 60).toString().padStart(2, '0');
+            const m = (journeyMinutes % 60).toString().padStart(2, '0');
+            document.getElementById('badgeJornada').textContent = `Jornada Diária: ${h}:${m}`;
+            renderizar();
+        }
+
+        const compressImage = (file) => new Promise((resolve) => {
+            if (!file) return resolve(null);
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const size = Math.min(img.width, img.height, 450);
+                    canvas.width = size; canvas.height = size;
+                    ctx.drawImage(img, (img.width - Math.min(img.width, img.height))/2, (img.height - Math.min(img.width, img.height))/2, Math.min(img.width, img.height), Math.min(img.width, img.height), 0, 0, size, size);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+            };
+        });
+
+        const timeToMinutes = (t) => { if(!t) return 0; const [h,m] = t.split(':').map(Number); return (h*60)+m; };
+        const minutesToTimeString = (m) => { const isNeg = m < 0; const a = Math.abs(m); return `${isNeg?'-':'+'}${Math.floor(a/60).toString().padStart(2,'0')}:${(a%60).toString().padStart(2,'0')}`; };
+
+        document.getElementById('pontoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSalvar');
+            btn.disabled = true; btn.textContent = "Sincronizando...";
+
+            const data = document.getElementById('dataPonto').value;
+            const ent1 = document.getElementById('ent1').value; const sai1 = document.getElementById('sai1').value;
+            const ent2 = document.getElementById('ent2').value; const sai2 = document.getElementById('sai2').value;
+
+            const total = (timeToMinutes(sai1) - timeToMinutes(ent1)) + (timeToMinutes(sai2) - timeToMinutes(ent2));
+
+            const img_ent1 = await compressImage(document.getElementById('imgEnt1').files[0]);
+            const img_sai1 = await compressImage(document.getElementById('imgSai1').files[0]);
+            const img_ent2 = await compressImage(document.getElementById('imgEnt2').files[0]);
+            const img_sai2 = await compressImage(document.getElementById('imgSai2').files[0]);
+
+            const payload = {
+                user_id: userAtual.id, data, ent1, sai1, ent2, sai2, total_trabalhado_minutos: total
+            };
+            if(img_ent1) payload.img_ent1 = img_ent1; if(img_sai1) payload.img_sai1 = img_sai1;
+            if(img_ent2) payload.img_ent2 = img_ent2; if(img_sai2) payload.img_sai2 = img_sai2;
+
+            const { error } = await supabase.from('registros_ponto').upsert(payload, { onConflict: 'user_id,data' });
+
+            if (error) { alert("Erro ao salvar na nuvem: " + error.message); }
+            else {
+                await carregarDadosDaNuvem();
+                e.target.reset();
+                document.getElementById('dataPonto').valueAsDate = new Date();
+            }
+            btn.disabled = false; btn.textContent = "Salvar na Nuvem";
+        });
+
+        async function deletarRegistro(id) {
+            if(confirm("Remover permanentemente da nuvem?")) {
+                const { error } = await supabase.from('registros_ponto').delete().eq('id', id);
+                if(!error) carregarDadosDaNuvem();
+            }
+        }
+
+        // NOVO: Lógica de Exportação do Backup JSON
+        function exportarBackupJSON() {
+            if (registros.length === 0) {
+                alert("Não há dados para exportar.");
+                return;
+            }
+            // Remove dados sensíveis internos do banco (como ids numéricos sequenciais antigos do BD) para evitar conflitos na reimportação
+            const dadosLimpos = registros.map(({ id, created_at, ...resto }) => resto);
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosLimpos, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            
+            const dataHoje = new Date().toISOString().split('T')[0];
+            downloadAnchor.setAttribute("download", `backup_pontos_${dataHoje}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        // NOVO: Lógica de Importação do Backup JSON
+        function importarBackupJSON(event) {
+            const arquivo = event.target.files[0];
+            if (!arquivo || !userAtual) return;
+
+            const statusTxt = document.getElementById('txtStatusBackup');
+            statusTxt.textContent = "Processando arquivo...";
+            statusTxt.className = "text-[11px] text-center font-medium text-amber-600 block";
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const pontosImportados = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(pontosImportados)) {
+                        throw new Error("O arquivo não está no formato de lista válido.");
+                    }
+
+                    // Prepara as linhas injetando o ID do usuário logado atual
+                    const payloads = pontosImportados.map(ponto => ({
+                        ...ponto,
+                        user_id: userAtual.id
+                    }));
+
+                    statusTxt.textContent = `Enviando ${payloads.length} registros para a nuvem...`;
+
+                    // Envia em lote usando o Upsert para não duplicar datas existentes
+                    const { error } = await supabase
+                        .from('registros_ponto')
+                        .upsert(payloads, { onConflict: 'user_id,data' });
+
+                    if (error) throw error;
+
+                    statusTxt.textContent = "Backup restaurado com sucesso!";
+                    statusTxt.className = "text-[11px] text-center font-medium text-emerald-600 block";
+                    
+                    await carregarDadosDaNuvem();
+                    
+                    setTimeout(() => statusTxt.classList.add('hidden'), 4000);
+                } catch (err) {
+                    alert("Falha na importação: Verifique se o arquivo JSON é válido.\n" + err.message);
+                    statusTxt.classList.add('hidden');
+                }
+                event.target.value = ''; // Limpa o input
+            };
+            reader.readAsText(arquivo);
+        }
+
+        function abrirModal(src) { const m = document.getElementById('imageModal'); document.getElementById('modalImg').src = src; m.classList.remove('hidden'); }
+        function fecharModal() { document.getElementById('imageModal').classList.add('hidden'); }
+
+        function renderizar() {
+            const tbody = document.getElementById('tabelaCorpo');
+            tbody.innerHTML = '';
+            let saldoTotal = 0;
+            const filtroMes = document.getElementById('filtroMes').value;
+
+            const exibidos = registros.filter(r => !filtroMes || r.data.startsWith(filtroMes));
+
+            if (exibidos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 text-xs font-medium">Nenhum registro sincronizado.</td></tr>`;
+            }
+
+            const getThumb = (img) => img ? `<div class="mt-1.5 flex justify-center"><img src="${img}" class="w-10 h-10 object-cover rounded-md border border-slate-200 cursor-pointer hover:scale-105 transition-transform" onclick="abrirModal('${img}')"></div>` : '<div class="text-slate-300 text-[10px] mt-1">-</div>';
+
+            exibidos.forEach(reg => {
+                const saldoDia = reg.total_trabalhado_minutos - journeyMinutes;
+                saldoTotal += saldoDia;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/50 transition-colors";
+                const dataF = reg.data.split('-').reverse().join('/');
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center font-semibold text-slate-900">${dataF}</td>
+                    <td class="p-4 text-center text-slate-600"><span class="font-medium">${reg.ent1 || '--:--'}</span>${getThumb(reg.img_ent1)}</td>
+                    <td class="p-4 text-center text-slate-600"><span class="font-medium">${reg.sai1 || '--:--'}</span>${getThumb(reg.img_sai1)}</td>
+                    <td class="p-4 text-center text-slate-600"><span class="font-medium">${reg.ent2 || '--:--'}</span>${getThumb(reg.img_ent2)}</td>
+                    <td class="p-4 text-center text-slate-600"><span class="font-medium">${reg.sai2 || '--:--'}</span>${getThumb(reg.img_sai2)}</td>
+                    <td class="p-4 text-center ${saldoDia >= 0 ? 'text-emerald-600':'text-rose-600'} font-semibold">${minutesToTimeString(saldoDia)}</td>
+                    <td class="p-4 text-center"><button onclick="deletarRegistro(${reg.id})" class="text-xs text-slate-400 hover:text-rose-600 font-medium transition-colors">Excluir</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const el = document.getElementById('saldoTotalValue');
+            el.textContent = minutesToTimeString(saldoTotal);
+            el.className = saldoTotal >= 0 ? "text-4xl md:text-5xl font-bold tracking-tight text-emerald-600" : "text-4xl md:text-5xl font-bold tracking-tight text-rose-600";
+        }
+
+        function exportarRelatorio() {
+            const inicio = document.getElementById('exportInicio').value;
+            const fim = document.getElementById('exportFim').value;
+            let filtrados = registros.filter(r => (!inicio || r.data >= inicio) && (!fim || r.data <= fim));
+            filtrados.sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            const DIAS_POR_PAGINA = 3; let paginasHtml = '';
+            const totalPaginas = Math.ceil(filtrados.length / DIAS_POR_PAGINA) || 1;
+
+            for (let i = 0; i < filtrados.length; i += DIAS_POR_PAGINA) {
+                const regs = filtrados.slice(i, i + DIAS_POR_PAGINA);
+                paginasHtml += `<div class="a4-page"><h2>Espelho de Ponto Nuvem</h2><p>Página ${Math.floor(i/DIAS_POR_PAGINA)+1} de ${totalPaginas}</p><table><thead><tr><th>Data</th><th>E1</th><th>S1</th><th>E2</th><th>S2</th><th>Saldo</th></tr></thead><tbody>`;
+                regs.forEach(r => {
+                    const s = r.total_trabalhado_minutos - journeyMinutes;
+                    paginasHtml += `<tr><td><strong>${r.data.split('-').reverse().join('/')}</strong></td><td>${r.ent1||'--:--'}${r.img_ent1?`<img src="${r.img_ent1}" class="img-p">`:''}</td><td>${r.sai1||'--:--'}${r.img_sai1?`<img src="${r.img_sai1}" class="img-p">`:''}</td><td>${r.ent2||'--:--'}${r.img_ent2?`<img src="${r.img_ent2}" class="img-p">`:''}</td><td>${r.sai2||'--:--'}${r.img_sai2?`<img src="${r.img_sai2}" class="img-p">`:''}</td><td><strong>${minutesToTimeString(s)}</strong></td></tr>`;
+                });
+                paginasHtml += `</tbody></table></div>`;
+            }
+
+            const janela = window.open();
+            janela.document.write(`<html><head><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'); body{font-family:'Inter',sans-serif; margin:0;} .a4-page{width:210mm; height:297mm; padding:20mm 15mm; box-sizing:border-box; page-break-after:always;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #000; padding:8px; text-align:center; font-size:12px;} th{background:#f0f0f1;} .img-p{width:60px; height:60px; object-fit:cover; display:block; margin:4px auto 0; border:1px solid #000; border-radius:4px;}</style></head><body>${paginasHtml || 'Sem dados'} <script>window.onload=()=>{setTimeout(()=>window.print(),400);};<\/script></body></html>`);
+            janela.document.close();
+        }
+
+        atualizarConfigJornada();
+    </script>
+</body>
+</html>
